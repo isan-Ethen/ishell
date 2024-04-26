@@ -25,7 +25,7 @@ fn main() {
             match io::stdin().read_line(&mut buffer) {
                 Ok(_) => break,
                 Err(why) => {
-                    eprintln!("Can not read line: {why}");
+                    eprintln!("Can not read line: {}", why);
                 }
             };
         }
@@ -71,8 +71,8 @@ fn main() {
                                     eprintln!("Execution failed: {}", why);
                                     match kill(getpid(), SIGTERM) {
                                         Ok(_) => {}
-                                        Err(err) => {
-                                            eprintln!("Child process: Error terminating: {}", err)
+                                        Err(why) => {
+                                            eprintln!("Couldn't terminate child: {}", why);
                                         }
                                     }
                                 }
