@@ -44,9 +44,8 @@ fn main() {
                         env::set_current_dir(&home_dir).unwrap();
                     }
                 }
-                "exit" => {
-                    break;
-                }
+                "clear" => println!("\x1B[2J\x1B[1;1H"),
+                "exit" => break,
                 _ => {
                     let dir = cmd_root + command;
                     match unsafe { fork() }.expect("fork failed") {
