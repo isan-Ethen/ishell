@@ -12,7 +12,6 @@ fn main() {
     let home_dir = env::var("HOME").unwrap();
 
     loop {
-        println!("current {}", std::process::id());
         let cmd_root: String = String::from("/bin/");
         let mut buffer = String::new();
         let current_dir = env::current_dir()
@@ -53,10 +52,10 @@ fn main() {
                             println!("parent {}", std::process::id());
                             match waitpid(child, None).expect("wait_pid failed") {
                                 WaitStatus::Exited(pid, status) => {
-                                    println!("exit: pid{:?}, status={:?}", pid, status)
+                                    println!("Exit: pid{:?}, status={:?}", pid, status)
                                 }
                                 WaitStatus::Signaled(pid, status, _) => {
-                                    println!("signal: pid={:?}, status{:?}", pid, status)
+                                    println!("Signal: pid={:?}, status{:?}", pid, status)
                                 }
                                 _ => println!("abnormal exit"),
                             }
