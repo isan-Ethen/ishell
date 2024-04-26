@@ -7,7 +7,6 @@ use nix::{
 };
 use std::{env, ffi::CString, io, io::Write};
 
-#[allow(unreachable_code)]
 fn main() {
     let home_dir = env::var("HOME").unwrap();
 
