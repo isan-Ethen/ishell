@@ -25,8 +25,8 @@ fn main() {
 
             match io::stdin().read_line(&mut buffer) {
                 Ok(_) => break,
-                Err(e) => {
-                    eprintln!("Can not read line: {e}");
+                Err(why) => {
+                    eprintln!("Can not read line: {why}");
                 }
             };
         }
@@ -50,14 +50,14 @@ fn main() {
                     match unsafe { fork() }.expect("fork failed") {
                         ForkResult::Parent { child } => {
                             println!("parent {}", std::process::id());
-                            match waitpid(child, None).expect("wait_pid failed") {
+                            match waitpid(child, None).expect("waitpid failed") {
                                 WaitStatus::Exited(pid, status) => {
-                                    println!("Exit: pid{:?}, status={:?}", pid, status)
+                                    println!("Exit: pid={:?}, status={:?}", pid, status)
                                 }
                                 WaitStatus::Signaled(pid, status, _) => {
-                                    println!("Signal: pid={:?}, status{:?}", pid, status)
+                                    println!("Signal: pid={:?}, status={:?}", pid, status)
                                 }
-                                _ => println!("abnormal exit"),
+                                _ => println!("Other exit"),
                             }
                         }
                         ForkResult::Child => {
