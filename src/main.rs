@@ -77,30 +77,38 @@ fn main() {
                         let mut args: Vec<CString> = Vec::from([command.clone()]);
                         let mut status = State::NORMAL;
                         for arg in inputs.into_iter() {
-                            if arg == ">" {
-                                status = State::OUT;
-                                continue;
-                            } else if arg == "<" {
+                            if arg == "<" {
                                 status = State::IN;
+                                continue;
+                            } else if arg == ">" {
+                                status = State::OUT;
                                 continue;
                             }
                             match status {
-                                State::IN => {
-                                    if let Ok(fd) = open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
+                                State::IN => match open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
+                                    Ok(fd) => {
                                         dup2(fd, STDIN_FILENO)
                                             .expect("Duplicate fd to STDIN_FILENO faied");
                                         close(fd).expect("Close fd failed");
                                         break;
-                                    };
-                                }
-                                State::OUT => {
-                                    if let Ok(fd) = open(arg, OFlag::O_WRONLY, Mode::S_IWUSR) {
+                                    }
+                                    Err(why) => eprintln!(
+                                        "Couldn't open {} as FileDescriptor: {}",
+                                        arg, why
+                                    ),
+                                },
+                                State::OUT => match open(arg, OFlag::O_WRONLY, Mode::S_IWUSR) {
+                                    Ok(fd) => {
                                         dup2(fd, STDOUT_FILENO)
                                             .expect("Duplicate fd to STDOUT_FILENO faied");
                                         close(fd).expect("Close fd failed");
                                         break;
-                                    };
-                                }
+                                    }
+                                    Err(why) => eprintln!(
+                                        "Couldn't open {} as FileDescriptor: {}",
+                                        arg, why
+                                    ),
+                                },
                                 State::NORMAL => args
                                     .push(CString::new(arg).expect("Can not cast arg to CString")),
                             }
