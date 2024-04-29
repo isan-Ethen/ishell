@@ -1,20 +1,15 @@
-use nix::fcntl::open;
-use nix::fcntl::openat;
-use nix::unistd::close;
-use nix::unistd::dup2;
 use nix::{
+    fcntl::{open, OFlag},
+    libc::{STDIN_FILENO, STDOUT_FILENO},
     sys::{
         signal::{kill, SIGTERM},
-        wait::*,
+        stat::Mode,
+        wait::{waitpid, WaitStatus},
     },
-    unistd::{execvp, fork, getpid, ForkResult},
+    unistd::{chdir, close, dup2, execvp, fork, getpid, ForkResult},
 };
-use std::fs::File;
-use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
-use std::{env, ffi::CString, io, io::Write};
-// use nix::fcntl{OFlag::O_CREAT}
-use nix::unistd::chdir;
 use std::path::PathBuf;
+use std::{env, ffi::CString, io, io::Write};
 
 enum State {
     IN,
@@ -87,12 +82,17 @@ fn main() {
                                 continue;
                             }
                             match status {
-                                State::IN => {}
+                                State::IN => {
+                                    let fd = open(arg, OFlag::O_RDONLY, Mode::S_IRUSR).unwrap();
+                                    dup2(fd, STDIN_FILENO).unwrap();
+                                    close(fd).unwrap();
+                                    break;
+                                }
                                 State::OUT => {
-                                    // eprintln!("{}", arg);
-                                    // let fd = open(arg, O_CREAT, S_IWUSR).unwrap();
-                                    // dup2(1, fd);
-                                    // close(1).unwrap();
+                                    let fd = open(arg, OFlag::O_WRONLY, Mode::S_IWUSR).unwrap();
+                                    dup2(fd, STDOUT_FILENO).unwrap();
+                                    close(fd).unwrap();
+                                    break;
                                 }
                                 State::NORMAL => args
                                     .push(CString::new(arg).expect("Can not cast arg to CString")),
