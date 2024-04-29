@@ -1,14 +1,24 @@
 use nix::{
+    fcntl::{open, OFlag},
+    libc::{STDIN_FILENO, STDOUT_FILENO},
     sys::{
         signal::{kill, SIGTERM},
-        wait::*,
+        stat::Mode,
+        wait::{waitpid, WaitStatus},
     },
-    unistd::{execvp, fork, getpid, ForkResult},
+    unistd::{chdir, close, dup2, execvp, fork, getpid, ForkResult},
 };
+use std::path::PathBuf;
 use std::{env, ffi::CString, io, io::Write};
 
+enum State {
+    IN,
+    OUT,
+    NORMAL,
+}
+
 fn main() {
-    let home_dir = env::var("HOME").unwrap();
+    let home_dir = env::var("HOME").expect("Couldn't get HOME");
 
     loop {
         let mut buffer = String::new();
@@ -33,12 +43,17 @@ fn main() {
             match command {
                 "cd" => {
                     if let Some(path) = inputs.next() {
-                        match env::set_current_dir(path) {
+                        match chdir(path) {
                             Ok(_) => {}
                             Err(why) => eprintln!("Couldn't change directory: {}", why),
                         }
                     } else {
-                        env::set_current_dir(&home_dir).unwrap();
+                        let mut home = PathBuf::new();
+                        home.push(home_dir.as_str());
+                        match chdir(&home) {
+                            Ok(_) => {}
+                            Err(why) => eprintln!("Couldn't change directory: {}", why),
+                        }
                     }
                 }
                 "clear" => println!("\x1B[2J\x1B[1;1H"),
@@ -60,8 +75,43 @@ fn main() {
                         println!("child {}", std::process::id());
                         let command = CString::new(command).unwrap();
                         let mut args: Vec<CString> = Vec::from([command.clone()]);
+                        let mut status = State::NORMAL;
                         for arg in inputs.into_iter() {
-                            args.push(CString::new(arg).expect("Can not cast arg to CString"));
+                            if arg == "<" {
+                                status = State::IN;
+                                continue;
+                            } else if arg == ">" {
+                                status = State::OUT;
+                                continue;
+                            }
+                            match status {
+                                State::IN => match open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
+                                    Ok(fd) => {
+                                        dup2(fd, STDIN_FILENO)
+                                            .expect("Duplicate fd to STDIN_FILENO faied");
+                                        close(fd).expect("Close fd failed");
+                                        break;
+                                    }
+                                    Err(why) => eprintln!(
+                                        "Couldn't open {} as FileDescriptor: {}",
+                                        arg, why
+                                    ),
+                                },
+                                State::OUT => match open(arg, OFlag::O_WRONLY, Mode::S_IWUSR) {
+                                    Ok(fd) => {
+                                        dup2(fd, STDOUT_FILENO)
+                                            .expect("Duplicate fd to STDOUT_FILENO faied");
+                                        close(fd).expect("Close fd failed");
+                                        break;
+                                    }
+                                    Err(why) => eprintln!(
+                                        "Couldn't open {} as FileDescriptor: {}",
+                                        arg, why
+                                    ),
+                                },
+                                State::NORMAL => args
+                                    .push(CString::new(arg).expect("Can not cast arg to CString")),
+                            }
                         }
                         match execvp(&command, &args[..]) {
                             Err(why) => {
