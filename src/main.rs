@@ -18,7 +18,7 @@ enum State {
 }
 
 fn main() {
-    let home_dir = env::var("HOME").unwrap();
+    let home_dir = env::var("HOME").expect("Couldn't get HOME");
 
     loop {
         let mut buffer = String::new();
@@ -50,7 +50,10 @@ fn main() {
                     } else {
                         let mut home = PathBuf::new();
                         home.push(home_dir.as_str());
-                        chdir(&home).unwrap();
+                        match chdir(&home) {
+                            Ok(_) => {}
+                            Err(why) => eprintln!("Couldn't change directory: {}", why),
+                        }
                     }
                 }
                 "clear" => println!("\x1B[2J\x1B[1;1H"),
@@ -83,16 +86,20 @@ fn main() {
                             }
                             match status {
                                 State::IN => {
-                                    let fd = open(arg, OFlag::O_RDONLY, Mode::S_IRUSR).unwrap();
-                                    dup2(fd, STDIN_FILENO).unwrap();
-                                    close(fd).unwrap();
-                                    break;
+                                    if let Ok(fd) = open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
+                                        dup2(fd, STDIN_FILENO)
+                                            .expect("Duplicate fd to STDIN_FILENO faied");
+                                        close(fd).expect("Close fd failed");
+                                        break;
+                                    };
                                 }
                                 State::OUT => {
-                                    let fd = open(arg, OFlag::O_WRONLY, Mode::S_IWUSR).unwrap();
-                                    dup2(fd, STDOUT_FILENO).unwrap();
-                                    close(fd).unwrap();
-                                    break;
+                                    if let Ok(fd) = open(arg, OFlag::O_WRONLY, Mode::S_IWUSR) {
+                                        dup2(fd, STDOUT_FILENO)
+                                            .expect("Duplicate fd to STDOUT_FILENO faied");
+                                        close(fd).expect("Close fd failed");
+                                        break;
+                                    };
                                 }
                                 State::NORMAL => args
                                     .push(CString::new(arg).expect("Can not cast arg to CString")),
