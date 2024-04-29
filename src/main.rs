@@ -1,3 +1,7 @@
+use nix::fcntl::open;
+use nix::fcntl::openat;
+use nix::unistd::close;
+use nix::unistd::dup2;
 use nix::{
     sys::{
         signal::{kill, SIGTERM},
@@ -5,7 +9,18 @@ use nix::{
     },
     unistd::{execvp, fork, getpid, ForkResult},
 };
+use std::fs::File;
+use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
 use std::{env, ffi::CString, io, io::Write};
+// use nix::fcntl{OFlag::O_CREAT}
+use nix::unistd::chdir;
+use std::path::PathBuf;
+
+enum State {
+    IN,
+    OUT,
+    NORMAL,
+}
 
 fn main() {
     let home_dir = env::var("HOME").unwrap();
@@ -33,12 +48,14 @@ fn main() {
             match command {
                 "cd" => {
                     if let Some(path) = inputs.next() {
-                        match env::set_current_dir(path) {
+                        match chdir(path) {
                             Ok(_) => {}
                             Err(why) => eprintln!("Couldn't change directory: {}", why),
                         }
                     } else {
-                        env::set_current_dir(&home_dir).unwrap();
+                        let mut home = PathBuf::new();
+                        home.push(home_dir.as_str());
+                        chdir(&home).unwrap();
                     }
                 }
                 "clear" => println!("\x1B[2J\x1B[1;1H"),
@@ -60,8 +77,26 @@ fn main() {
                         println!("child {}", std::process::id());
                         let command = CString::new(command).unwrap();
                         let mut args: Vec<CString> = Vec::from([command.clone()]);
+                        let mut status = State::NORMAL;
                         for arg in inputs.into_iter() {
-                            args.push(CString::new(arg).expect("Can not cast arg to CString"));
+                            if arg == ">" {
+                                status = State::OUT;
+                                continue;
+                            } else if arg == "<" {
+                                status = State::IN;
+                                continue;
+                            }
+                            match status {
+                                State::IN => {}
+                                State::OUT => {
+                                    // eprintln!("{}", arg);
+                                    // let fd = open(arg, O_CREAT, S_IWUSR).unwrap();
+                                    // dup2(1, fd);
+                                    // close(1).unwrap();
+                                }
+                                State::NORMAL => args
+                                    .push(CString::new(arg).expect("Can not cast arg to CString")),
+                            }
                         }
                         match execvp(&command, &args[..]) {
                             Err(why) => {
