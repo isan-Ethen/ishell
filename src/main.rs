@@ -3,7 +3,7 @@ use nix::{
         signal::{kill, SIGTERM},
         wait::*,
     },
-    unistd::{execv, fork, getpid, ForkResult},
+    unistd::{execvp, fork, getpid, ForkResult},
 };
 use std::{env, ffi::CString, io, io::Write};
 
@@ -11,7 +11,6 @@ fn main() {
     let home_dir = env::var("HOME").unwrap();
 
     loop {
-        let cmd_root: String = String::from("/bin/");
         let mut buffer = String::new();
         let current_dir = env::current_dir()
             .unwrap()
@@ -44,43 +43,40 @@ fn main() {
                 }
                 "clear" => println!("\x1B[2J\x1B[1;1H"),
                 "exit" => break,
-                _ => {
-                    let dir = cmd_root + command;
-                    match unsafe { fork() }.expect("fork failed") {
-                        ForkResult::Parent { child } => {
-                            println!("parent {}", std::process::id());
-                            match waitpid(child, None).expect("waitpid failed") {
-                                WaitStatus::Exited(pid, status) => {
-                                    println!("Exit: pid={:?}, status={:?}", pid, status)
-                                }
-                                WaitStatus::Signaled(pid, status, _) => {
-                                    println!("Signal: pid={:?}, status={:?}", pid, status)
-                                }
-                                _ => println!("Other exit"),
+                _ => match unsafe { fork() }.expect("fork failed") {
+                    ForkResult::Parent { child } => {
+                        println!("parent {}", std::process::id());
+                        match waitpid(child, None).expect("waitpid failed") {
+                            WaitStatus::Exited(pid, status) => {
+                                println!("Exit: pid={:?}, status={:?}", pid, status)
                             }
-                        }
-                        ForkResult::Child => {
-                            println!("child {}", std::process::id());
-                            let dir = CString::new(dir).expect("Can not cast dir to CString");
-                            let mut args: Vec<CString> = Vec::from([dir.clone()]);
-                            for arg in inputs.into_iter() {
-                                args.push(CString::new(arg).expect("Can not cast arg to CString"));
+                            WaitStatus::Signaled(pid, status, _) => {
+                                println!("Signal: pid={:?}, status={:?}", pid, status)
                             }
-                            match execv(&dir, &args[..]) {
-                                Err(why) => {
-                                    eprintln!("Execution failed: {}", why);
-                                    match kill(getpid(), SIGTERM) {
-                                        Ok(_) => {}
-                                        Err(why) => {
-                                            eprintln!("Couldn't terminate child: {}", why);
-                                        }
-                                    }
-                                }
-                                Ok(_) => {}
-                            }
+                            _ => println!("Other exit"),
                         }
                     }
-                }
+                    ForkResult::Child => {
+                        println!("child {}", std::process::id());
+                        let command = CString::new(command).unwrap();
+                        let mut args: Vec<CString> = Vec::from([command.clone()]);
+                        for arg in inputs.into_iter() {
+                            args.push(CString::new(arg).expect("Can not cast arg to CString"));
+                        }
+                        match execvp(&command, &args[..]) {
+                            Err(why) => {
+                                eprintln!("Execution failed: {}", why);
+                                match kill(getpid(), SIGTERM) {
+                                    Ok(_) => {}
+                                    Err(why) => {
+                                        eprintln!("Couldn't terminate child: {}", why);
+                                    }
+                                }
+                            }
+                            Ok(_) => {}
+                        }
+                    }
+                },
             }
         }
     }
