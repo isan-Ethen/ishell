@@ -9,7 +9,7 @@ use nix::{
     unistd::{chdir, close, dup2, execvp, fork, getpid, ForkResult},
 };
 use std::path::PathBuf;
-use std::{env, ffi::CString, io, io::Write};
+use std::{env, ffi::CString, fs, io, io::Write};
 
 enum State {
     IN,
@@ -82,6 +82,20 @@ fn main() {
                                 continue;
                             } else if arg == ">" {
                                 status = State::OUT;
+                                continue;
+                            } else if arg == "*" {
+                                if let Ok(readdir) = fs::read_dir(&current_dir) {
+                                    for entry in readdir {
+                                        if let Ok(file) = entry {
+                                            args.push(
+                                                CString::new(
+                                                    file.file_name().into_string().unwrap(),
+                                                )
+                                                .unwrap(),
+                                            );
+                                        }
+                                    }
+                                }
                                 continue;
                             }
                             match status {
