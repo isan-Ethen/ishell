@@ -88,7 +88,7 @@ fn main() {
                                 State::IN => match open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
                                     Ok(fd) => {
                                         dup2(fd, STDIN_FILENO)
-                                            .expect("Duplicate fd to STDIN_FILENO faied");
+                                            .expect("Duplicate fd to STDIN_FILENO failed");
                                         close(fd).expect("Close fd failed");
                                         break;
                                     }
@@ -100,7 +100,7 @@ fn main() {
                                 State::OUT => match open(arg, OFlag::O_WRONLY, Mode::S_IWUSR) {
                                     Ok(fd) => {
                                         dup2(fd, STDOUT_FILENO)
-                                            .expect("Duplicate fd to STDOUT_FILENO faied");
+                                            .expect("Duplicate fd to STDOUT_FILENO failed");
                                         close(fd).expect("Close fd failed");
                                         break;
                                     }
