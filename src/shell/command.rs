@@ -44,38 +44,43 @@ impl Command {
     pub fn execute(&self) {
         match unsafe { fork() }.expect("fork failed") {
             ForkResult::Parent { child } => {
-                // println!("parent {}", std::process::id());
-                match waitpid(child, None).expect("waitpid failed") {
-                    WaitStatus::Exited(pid, status) => {
-                        println!("Exit: pid={:?}, status={:?}", pid, status)
-                    }
-                    WaitStatus::Signaled(pid, status, _) => {
-                        println!("Signal: pid={:?}, status={:?}", pid, status)
-                    }
-                    _ => eprintln!("Other waitstatus"),
-                }
+                Command::handle_waitstatus(waitpid(child, None).expect("waitpid failed"))
             }
             ForkResult::Child => {
                 // println!("child {}", std::process::id());
-                if let Some(fd) = self.infd {
-                    dup2(fd, STDIN_FILENO).expect("Duplicate fd1 to fd2 failed");
-                }
-                if let Some(fd) = self.outfd {
-                    dup2(fd, STDOUT_FILENO).expect("Duplicate fd1 to fd2 failed");
-                }
+                self.duplicate_fd();
                 match execvp(&self.argv[0], &self.argv) {
                     Err(why) => {
                         eprintln!("Execute command failed: {}", why);
-                        match kill(getpid(), SIGTERM) {
-                            Ok(_) => {}
-                            Err(why) => {
-                                eprintln!("Couldn't terminate child: {}", why);
-                            }
+                        if let Err(why) = kill(getpid(), SIGTERM) {
+                            eprintln!("Couldn't terminate child: {}", why);
                         }
                     }
                     Ok(_) => {}
                 }
             }
+        }
+    }
+
+    fn handle_waitstatus(waitstatus: WaitStatus) {
+        // println!("parent {}", std::process::id());
+        match waitstatus {
+            WaitStatus::Exited(pid, status) => {
+                println!("Exit: pid={:?}, status={:?}", pid, status)
+            }
+            WaitStatus::Signaled(pid, status, _) => {
+                println!("Signal: pid={:?}, status={:?}", pid, status)
+            }
+            _ => eprintln!("Other waitstatus"),
+        }
+    }
+
+    fn duplicate_fd(&self) {
+        if let Some(fd) = self.infd {
+            dup2(fd, STDIN_FILENO).expect("Duplicate input to stdin failed");
+        }
+        if let Some(fd) = self.outfd {
+            dup2(fd, STDOUT_FILENO).expect("Duplicate output to stdout failed");
         }
     }
 }

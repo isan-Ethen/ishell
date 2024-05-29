@@ -28,18 +28,10 @@ impl Shell {
                     self.handle_cd(&mut iter);
                 }
                 "<" => {
-                    if let Some(arg) = iter.next() {
-                        commands.push(Shell::handle_rbracket(arg, &mut args));
-                    } else {
-                        eprintln!("File Descriptor wasn't gived");
-                    }
+                    self.handle_langle(&mut args, &mut commands, &mut iter);
                 }
                 ">" => {
-                    if let Some(arg) = iter.next() {
-                        commands.push(Shell::handle_lbracket(arg, &mut args, fd));
-                    } else {
-                        eprintln!("File Descriptor wasn't gived");
-                    }
+                    self.handle_rangle(&mut args, &mut commands, &mut fd, &mut iter);
                 }
                 "*" => {
                     self.handle_wildcard(&mut args);
@@ -81,38 +73,83 @@ impl Shell {
         iter.next_if(|&&x| x != "<" && x != ">" && x != "|" && x != ";")
     }
 
-    fn handle_lbracket(file_name: &str, args: &mut Vec<CString>, fd: Option<RawFd>) -> Command {
-        let command = match open(file_name, OFlag::O_WRONLY, Mode::S_IWUSR) {
-            Ok(fd1) => {
-                if let Some(fd0) = fd {
-                    Command::from_fd(args.clone(), Some(fd0), Some(fd1))
-                } else {
-                    Command::from_fd(args.clone(), None, Some(fd1))
+    fn handle_rangle<'a, I>(
+        &self,
+        args: &mut Vec<CString>,
+        commands: &mut Vec<Command>,
+        fd: &mut Option<RawFd>,
+        iter: &mut Peekable<I>,
+    ) where
+        I: Iterator<Item = &'a &'a str>,
+    {
+        if let Some(filename) = self.get_path(iter) {
+            if args.is_empty() {
+                if let Some(command) = commands.last_mut() {
+                    if let Some(fd1) = Shell::open_fd_for_write(filename) {
+                        command.change_outfd(Some(fd1));
+                    }
                 }
-            }
-            Err(why) => {
-                eprintln!("Couldn't open {} as FileDescriptor: {}", file_name, why);
-                if let Some(fd0) = fd {
-                    Command::from_fd(args.clone(), Some(fd0), None)
+            } else {
+                let fd1 = Shell::open_fd_for_write(filename);
+                let command = if let Some(fd0) = fd {
+                    Command::from_fd(args.drain(..).collect::<Vec<CString>>(), Some(*fd0), fd1)
                 } else {
-                    Command::from_fd(args.clone(), None, None)
-                }
+                    Command::from_fd(args.drain(..).collect::<Vec<CString>>(), None, fd1)
+                };
+                commands.push(command);
             }
-        };
-        args.clear();
-        command
+            *fd = None;
+        } else {
+            eprintln!("File Descriptor wasn't given");
+        }
     }
 
-    fn handle_rbracket(arg: &str, args: &mut Vec<CString>) -> Command {
-        let command = match open(arg, OFlag::O_RDONLY, Mode::S_IRUSR) {
-            Ok(fd0) => Command::from_fd(args.clone(), Some(fd0), None),
+    fn open_fd_for_write(filename: &str) -> Option<RawFd> {
+        match open(
+            filename,
+            OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_TRUNC,
+            Mode::S_IWUSR,
+        ) {
+            Ok(fd1) => Some(fd1),
             Err(why) => {
-                eprintln!("Couldn't open {} as FileDescriptor: {}", arg, why);
-                Command::from_fd(args.clone(), None, None)
+                eprintln!("Couldn't open {} as FileDescriptor: {}", filename, why);
+                None
+            }
+        }
+    }
+
+    fn handle_langle<'a, I>(
+        &self,
+        args: &mut Vec<CString>,
+        commands: &mut Vec<Command>,
+        iter: &mut Peekable<I>,
+    ) where
+        I: Iterator<Item = &'a &'a str>,
+    {
+        match self.get_path(iter) {
+            Some(filename) => {
+                let command = Command::from_fd(
+                    args.drain(..).collect::<Vec<CString>>(),
+                    Shell::open_fd_for_read(filename),
+                    None,
+                );
+                commands.push(command);
+            }
+            None => {
+                eprintln!("File Descriptor wasn't given");
+                args.clear();
             }
         };
-        args.clear();
-        command
+    }
+
+    fn open_fd_for_read(filename: &str) -> Option<RawFd> {
+        match open(filename, OFlag::O_RDONLY, Mode::S_IRUSR) {
+            Ok(fd0) => Some(fd0),
+            Err(why) => {
+                eprintln!("Couldn't open {} as FileDescriptor: {}", filename, why);
+                None
+            }
+        }
     }
 
     fn handle_wildcard(&self, args: &mut Vec<CString>) {

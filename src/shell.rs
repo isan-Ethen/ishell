@@ -29,7 +29,8 @@ impl Shell {
             let buffer = self.read_line();
             self.history.push(buffer.clone());
             let (mut commands, mut pipev) = self.parse(buffer);
-            self.commands_execute(&mut commands, &mut pipev);
+            println!("{:?}", commands);
+            Shell::commands_execute(&mut commands, &mut pipev);
         }
     }
 
@@ -67,7 +68,7 @@ impl Shell {
         );
     }
 
-    fn commands_execute(&self, commands: &mut Vec<Command>, pipev: &mut Vec<(RawFd, RawFd)>) {
+    fn commands_execute(commands: &mut Vec<Command>, pipev: &mut Vec<(RawFd, RawFd)>) {
         let mut commands = commands.iter();
         let mut pipev = pipev.iter();
         let mut is_pipe = false;
