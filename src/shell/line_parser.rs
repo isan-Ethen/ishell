@@ -170,7 +170,11 @@ impl Shell {
     ) {
         let pipe = pipe().expect("Couldn't generate pipe");
         if args.len() > 0 {
-            commands.push(Command::from_fd(args.clone(), fd.take(), Some(pipe.1)));
+            commands.push(Command::from_fd(
+                args.drain(..).collect::<Vec<CString>>(),
+                fd.take(),
+                Some(pipe.1),
+            ));
         } else {
             if let Some(command) = commands.last_mut() {
                 command.change_outfd(Some(pipe.1));
@@ -179,7 +183,6 @@ impl Shell {
             }
         }
         *fd = Some(pipe.0);
-        args.clear();
         pipev.push(pipe);
     }
 
@@ -190,11 +193,14 @@ impl Shell {
     ) {
         if args.len() > 0 {
             if let Some(fd0) = fd {
-                commands.push(Command::from_fd(args.clone(), Some(*fd0), None));
+                commands.push(Command::from_fd(
+                    args.drain(..).collect::<Vec<CString>>(),
+                    Some(*fd0),
+                    None,
+                ));
             } else {
-                commands.push(Command::new(args.clone()));
+                commands.push(Command::new(args.drain(..).collect::<Vec<CString>>()));
             }
-            args.clear();
         }
     }
 }
