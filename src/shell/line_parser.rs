@@ -108,7 +108,7 @@ impl Shell {
         match open(
             filename,
             OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_TRUNC,
-            Mode::S_IWUSR,
+            Mode::from_bits_truncate(0o644),
         ) {
             Ok(fd1) => Some(fd1),
             Err(why) => {
