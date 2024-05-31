@@ -30,8 +30,9 @@ impl Shell {
                 "<" => {
                     self.handle_langle(&mut args, &mut commands, &mut iter);
                 }
-                ">" => {
-                    self.handle_rangle(&mut args, &mut commands, &mut fd, &mut iter);
+                ">" | ">>" => {
+                    let flag = Shell::get_flag(arg);
+                    self.handle_rangle(&mut args, &mut commands, &mut fd, &mut iter, flag);
                 }
                 "*" => {
                     self.handle_wildcard(&mut args);
@@ -73,24 +74,33 @@ impl Shell {
         iter.next_if(|&&x| x != "<" && x != ">" && x != "|" && x != ";")
     }
 
+    fn get_flag(symbol: &str) -> OFlag {
+        if symbol == ">" {
+            OFlag::O_TRUNC
+        } else {
+            OFlag::O_APPEND
+        }
+    }
+
     fn handle_rangle<'a, I>(
         &self,
         args: &mut Vec<CString>,
         commands: &mut Vec<Command>,
         fd: &mut Option<RawFd>,
         iter: &mut Peekable<I>,
+        flag: OFlag,
     ) where
         I: Iterator<Item = &'a &'a str>,
     {
         if let Some(filename) = self.get_path(iter) {
             if args.is_empty() {
                 if let Some(command) = commands.last_mut() {
-                    if let Some(fd1) = Shell::open_fd_for_write(filename) {
+                    if let Some(fd1) = Shell::open_fd_for_write(filename, flag) {
                         command.change_outfd(Some(fd1));
                     }
                 }
             } else {
-                let fd1 = Shell::open_fd_for_write(filename);
+                let fd1 = Shell::open_fd_for_write(filename, flag);
                 let command = if let Some(fd0) = fd {
                     Command::from_fd(args.drain(..).collect::<Vec<CString>>(), Some(*fd0), fd1)
                 } else {
@@ -104,10 +114,10 @@ impl Shell {
         }
     }
 
-    fn open_fd_for_write(filename: &str) -> Option<RawFd> {
+    fn open_fd_for_write(filename: &str, flag: OFlag) -> Option<RawFd> {
         match open(
             filename,
-            OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_TRUNC,
+            OFlag::O_WRONLY | OFlag::O_CREAT | flag,
             Mode::from_bits_truncate(0o644),
         ) {
             Ok(fd1) => Some(fd1),
