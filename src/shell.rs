@@ -15,7 +15,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new() -> Shell {
+    fn new() -> Shell {
         Shell {
             history: Vec::new(),
             home_directory: env::var("HOME").expect("Couldn't get HOME"),
@@ -23,12 +23,14 @@ impl Shell {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run() {
+        let mut shell = Shell::new();
+
         loop {
-            self.set_current_directory();
-            let buffer = self.read_line();
-            self.history.push(buffer.clone());
-            let (mut commands, mut pipev) = self.parse(buffer);
+            shell.set_current_directory();
+            let buffer = shell.read_line();
+            shell.history.push(buffer.clone());
+            let (mut commands, mut pipev) = shell.parse(buffer);
             println!("{:?}", commands);
             Shell::commands_execute(&mut commands, &mut pipev);
         }

@@ -47,7 +47,6 @@ impl Command {
                 Command::handle_waitstatus(waitpid(child, None).expect("waitpid failed"))
             }
             ForkResult::Child => {
-                // println!("child {}", std::process::id());
                 self.duplicate_fd();
                 match execvp(&self.argv[0], &self.argv) {
                     Err(why) => {
@@ -63,7 +62,6 @@ impl Command {
     }
 
     fn handle_waitstatus(waitstatus: WaitStatus) {
-        // println!("parent {}", std::process::id());
         match waitstatus {
             WaitStatus::Exited(pid, status) => {
                 println!("Exit: pid={:?}, status={:?}", pid, status)
