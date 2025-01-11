@@ -7,4 +7,4 @@ This is the isan's handmade shell written in Rust
 - Execute multiple commands with ';'
 - Use '*' as a wildcard
 - Redirect input and output using '>', '>>', and '<'
-- Pipe commands using '|'
+- Pipe multiple commands using '|'
